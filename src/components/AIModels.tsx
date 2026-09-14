@@ -1,0 +1,24 @@
+import { useEffect, useState } from 'react';
+import { Activity, AlertTriangle, BrainCircuit, Database, GitBranch, Layers3, ShieldCheck } from 'lucide-react';
+import { GlassCard } from './ui/GlassCard';
+import { getHealth } from '@/api/client';
+
+type Health = Awaited<ReturnType<typeof getHealth>>;
+
+const models = [
+  { key:'model1', tag:'Model A', title:'Terrain / Susceptibility Classifier', icon: Layers3, architecture:'Calibrated Logistic Regression (isotonic calibration)', inputs:'30 tabular environmental, terrain and sensor features', role:'Primary susceptibility probability when the required feature vector is available.' },
+  { key:'model2', tag:'Model B', title:'Dynamic Risk Neural Network', icon: Activity, architecture:'34 → 64 → 32 → 16 → 1 PyTorch network', inputs:'34 dynamic + terrain + sensor features', role:'Dynamic probability. The supplied state dict is strictly validated against the reconstructed layer dimensions.' },
+  { key:'model3', tag:'Model C', title:'Environmental Anomaly Detector', icon: AlertTriangle, architecture:'StandardScaler → IsolationForest (200 estimators)', inputs:'32 environmental / sensor features', role:'Anomaly evidence only — not independently presented as a landslide probability.' },
+  { key:'model4', tag:'Model D', title:'Spatial Vulnerability Input', icon: Database, architecture:'Required by the fusion engine', inputs:'Expected normalized 0–1 spatial vulnerability score', role:'Disabled: the supplied Model 4 predicts climate class and is not scientifically compatible with this fusion input.' },
+];
+
+export function AIModels() {
+  const [health,setHealth]=useState<Health|null>(null);
+  useEffect(()=>{getHealth().then(setHealth).catch(()=>setHealth(null));},[]);
+  return <section id="ai-models" className="relative py-20 px-4 lg:px-6"><div className="max-w-7xl mx-auto"><div className="mb-8"><div className="flex items-center gap-2 mb-2"><BrainCircuit className="w-4 h-4 text-blue-400" /><span className="text-[11px] font-semibold text-blue-400 uppercase tracking-widest">Section 04</span></div><h2 className="text-2xl md:text-3xl font-bold text-slate-100">Model Intelligence Stack</h2><p className="text-sm text-slate-400 mt-2 max-w-3xl">This view now reflects the supplied artifacts rather than marketing labels. Model availability is read from the backend health endpoint.</p></div>
+  <div className="grid md:grid-cols-2 gap-4">{models.map(m=>{const st=health?.models?.[m.key]; const loaded=st?.loaded===true; const Icon=m.icon; return <GlassCard key={m.key} className="p-6"><div className="flex items-start justify-between gap-3"><div className="flex gap-3"><div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center"><Icon className="w-5 h-5 text-blue-400" /></div><div><p className="text-[10px] uppercase tracking-widest text-blue-400">{m.tag}</p><h3 className="text-base font-bold text-slate-100 mt-0.5">{m.title}</h3></div></div><span className={`text-[9px] px-2 py-1 rounded border ${loaded?'text-emerald-300 border-emerald-500/30 bg-emerald-500/10':'text-amber-300 border-amber-500/30 bg-amber-500/10'}`}>{loaded?'LOADED':'LIMITED'}</span></div><div className="mt-5 space-y-3"><Spec label="Architecture" value={m.architecture} /><Spec label="Inputs" value={m.inputs} /><Spec label="Operational role" value={m.role} />{st?.note && <p className="text-[10px] text-amber-300/80">{st.note}</p>}{st?.reason && <p className="text-[10px] text-amber-300/80">{st.reason}</p>}</div></GlassCard>})}</div>
+  <GlassCard className="p-6 mt-4"><div className="flex items-center gap-3"><GitBranch className="w-5 h-5 text-violet-400" /><div><h3 className="text-sm font-bold text-slate-100">Fusion Decision Engine</h3><p className="text-xs text-slate-400 mt-1">4-input PyTorch fusion network: susceptibility + dynamic + anomaly + spatial vulnerability.</p></div></div><div className="mt-4 rounded-lg border border-slate-700/50 bg-slate-900/30 p-4 text-xs text-slate-400"><p><span className="text-emerald-300 font-semibold">Current safe behavior:</span> the UI displays Model 1 susceptibility as the operational score when Model 4 is unavailable. Experimental proxy-based fusion is disabled by default.</p><p className="mt-2"><span className="text-blue-300 font-semibold">Canonical thresholds:</span> LOW 0–24 · MODERATE 25–54 · HIGH 55–79 · CRITICAL 80–100.</p></div></GlassCard>
+  <div className="mt-4 flex items-start gap-2 text-[10px] text-slate-500"><ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />Outputs produced with training-set median fallbacks are visibly marked degraded. No missing sensor value is presented as a live measurement.</div></div></section>;
+}
+
+function Spec({label,value}:{label:string;value:string}){return <div><p className="text-[9px] uppercase tracking-widest text-slate-600">{label}</p><p className="text-xs text-slate-300 mt-1 leading-relaxed">{value}</p></div>}

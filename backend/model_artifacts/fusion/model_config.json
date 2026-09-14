@@ -1,0 +1,24 @@
+{
+  "model_name": "Landslide_Risk_Decision_Engine",
+  "model_version": "v1.0.0",
+  "framework": "PyTorch",
+  "prediction_horizon": "6h",
+  "risk_thresholds": {
+    "LOW": [
+      0,
+      25
+    ],
+    "MODERATE": [
+      25,
+      55
+    ],
+    "HIGH": [
+      55,
+      80
+    ],
+    "CRITICAL": [
+      80,
+      100
+    ]
+  }
+}
