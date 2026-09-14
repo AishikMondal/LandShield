@@ -25,6 +25,7 @@ export interface FactPoint {
 
 export interface SourceMeta extends FactPoint {
   feature: string;
+  name?: string;
 }
 
 export interface ImpactedAsset {

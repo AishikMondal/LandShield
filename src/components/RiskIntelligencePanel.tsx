@@ -28,11 +28,11 @@ export function SourceBadge({ type }: { type: SourceType }) {
   );
 }
 
-function FactorRow({ factor }: { factor: { feature: string; value: number | null; unit: string; source_type: SourceType; source?: string } }) {
+function FactorRow({ factor }: { factor: { feature: string; name?: string; value: number | null; unit: string; source_type: SourceType; source?: string } }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-900/30 border border-slate-800 p-2">
       <div className="min-w-0">
-        <p className="text-[11px] text-slate-300 truncate">{factor.feature}</p>
+        <p className="text-[11px] text-slate-300 truncate">{factor.name || factor.feature}</p>
         <SourceBadge type={factor.source_type} />
       </div>
       <span className="font-mono text-xs text-slate-200 whitespace-nowrap">
