@@ -5,10 +5,11 @@ import { riskColorStr } from '@/lib/risk';
 
 interface HotspotPanelProps {
   onSelect: (lat: number, lng: number) => void;
+  onHotspotsChanged?: (items: HotspotItem[]) => void;
   className?: string;
 }
 
-export function HotspotPanel({ onSelect, className = '' }: HotspotPanelProps) {
+export function HotspotPanel({ onSelect, onHotspotsChanged, className = '' }: HotspotPanelProps) {
   const [hotspots, setHotspots] = useState<HotspotItem[]>([]);
   const [meta, setMeta] = useState({ status: 'idle', freshness: 'no data yet', total_candidates: 0, last_refresh: '' });
   const [loading, setLoading] = useState(false);
@@ -17,15 +18,18 @@ export function HotspotPanel({ onSelect, className = '' }: HotspotPanelProps) {
     setLoading(true);
     try {
       const p = await getHotspots(force);
-      setHotspots(p.hotspots);
+      const visibleHotspots = (p.hotspots || []).slice(0, 5);
+      setHotspots(visibleHotspots);
+      onHotspotsChanged?.(visibleHotspots);
       setMeta({ status: p.status, freshness: p.freshness, total_candidates: p.total_candidates, last_refresh: p.last_refresh });
     } catch {
       setHotspots([]);
+      onHotspotsChanged?.([]);
       setMeta(m => ({ ...m, status: 'error' }));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onHotspotsChanged]);
 
   useEffect(() => { refresh(false); }, [refresh]);
 

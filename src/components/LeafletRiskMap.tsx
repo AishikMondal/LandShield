@@ -166,7 +166,7 @@ export function LeafletRiskMap() {
               {assessment && !loading && <RiskIntelligencePanel assessment={assessment} />}
             </div>
 
-            <HotspotPanel onSelect={analyze} />
+            <HotspotPanel onSelect={analyze} onHotspotsChanged={setHotspots} />
           </aside>
         </div>
       </div>

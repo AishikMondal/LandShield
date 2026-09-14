@@ -58,7 +58,8 @@ async def _compute_all():
             "primary_factors": res.get("why_high_risk", [])[:4],
         })
     items_raw.sort(key=lambda x: (-x["risk_score"], x["location_name"]))
-    for i, item in enumerate(items_raw[:HOTSPOT_TOP_N], start=1):
+    items_raw = items_raw[:HOTSPOT_TOP_N]
+    for i, item in enumerate(items_raw, start=1):
         item["rank"] = i
     return items_raw
 
