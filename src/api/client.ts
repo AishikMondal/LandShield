@@ -61,6 +61,27 @@ export interface FusionStatus {
   reason?: string | null;
 }
 
+export interface SlopeSensitivityRow {
+  slope_angle: number;
+  model_output_probability: number;
+  risk_score: number;
+  risk_level: RiskLevel;
+}
+
+export interface SlopeSensitivityResponse {
+  slope_sensitivity: SlopeSensitivityRow[];
+  model_input_received: {
+    feature: string;
+    units: string;
+    base_features_constant: boolean;
+    static_terrain_inputs: string[];
+    dynamic_inputs: string[];
+  };
+  note: string;
+  terrain_source?: string | null;
+  terrain_source_type?: string | null;
+}
+
 export interface RiskAssessment {
   location: {
     latitude: number;
@@ -241,8 +262,19 @@ export function simulateRisk(latitude: number, longitude: number, rainfallMultip
   });
 }
 
+export function simulateSlopeRisk(latitude: number, longitude: number, slopeAngle: number) {
+  return request<RiskAssessment>('/api/risk/simulate-slope', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ latitude, longitude, slope_angle: slopeAngle }),
+  });
+}
+
 export function getHotspots(force = false) {
   return request<HotspotsPayload>(`/api/risk/hotspots?force=${force ? 1 : 0}`);
+}
+
+export function getSlopeSensitivity(latitude: number, longitude: number) {
+  return request<SlopeSensitivityResponse>(`/api/risk/slope-sensitivity?latitude=${latitude}&longitude=${longitude}`);
 }
 
 export function getLocationAssets(latitude: number, longitude: number, radiusM?: number) {

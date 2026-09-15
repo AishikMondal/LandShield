@@ -29,6 +29,9 @@ class ScenarioRequest(CoordinateRequest):
     rainfall_multiplier: float = Field(default=1.0, ge=0, le=5)
     soil_moisture_delta: float = Field(default=0.0, ge=-1, le=1)
 
+class SlopeScenarioRequest(CoordinateRequest):
+    slope_angle: float = Field(ge=0, le=90)
+
 
 class HotspotResponseItem(BaseModel):
     rank: int

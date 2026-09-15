@@ -12,8 +12,8 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import CORS_ORIGINS, UPLOAD_DIR, DB_PATH, DEMO_MODE, ALERT_THRESHOLD, HTTP_TIMEOUT_SECONDS
 from .db import init_db, create_report, list_reports, verify_report, list_alerts, maybe_create_alert
-from .schemas import CoordinateRequest, ScenarioRequest, BroadcastRequest, VerifyReportRequest
-from .services.risk import assess, registry, risk_level
+from .schemas import CoordinateRequest, ScenarioRequest, SlopeScenarioRequest, BroadcastRequest, VerifyReportRequest
+from .services.risk import assess, registry, risk_level, slope_sensitivity as slope_sensitivity_probe
 from .services.hotspots import refresh_hotspots, hotspot_payload
 from .services.exposure import assets_for_location
 from .services.data_sources import fetch_weather, fetch_elevation_and_terrain, fetch_surroundings
@@ -114,11 +114,20 @@ async def simulate(req: ScenarioRequest):
     return await assess(req.latitude, req.longitude,
                         {"rainfall_multiplier": req.rainfall_multiplier, "soil_moisture_delta": req.soil_moisture_delta})
 
+@app.post("/api/risk/simulate-slope")
+async def simulate_slope(req: SlopeScenarioRequest):
+    return await assess(req.latitude, req.longitude, {"slope_angle": req.slope_angle})
+
 
 @app.get("/api/risk/hotspots")
 async def hotspots(_force: int = 0):
     await refresh_hotspots(force=bool(_force))
     return hotspot_payload()
+
+
+@app.get("/api/risk/slope-sensitivity")
+async def slope_sensitivity_route(latitude: float, longitude: float):
+    return await slope_sensitivity_probe(latitude, longitude)
 
 
 @app.get("/api/location/assets")

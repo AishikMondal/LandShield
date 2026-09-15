@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AlertTriangle, BrainCircuit, Database, Loader2, MapPin, Radar, Satellite, ShieldCheck, Zap,
 } from 'lucide-react';
-import { simulateRisk, type RiskAssessment, type SourceType } from '@/api/client';
+import { getSlopeSensitivity, simulateRisk, simulateSlopeRisk, type RiskAssessment, type SlopeSensitivityResponse, type SourceType } from '@/api/client';
 import { riskColor, riskGlow, riskLabel } from '@/lib/risk';
 import type { RiskLevel as DisplayLevel } from '@/types';
 
@@ -50,6 +50,31 @@ export function RiskIntelligencePanel({ assessment }: { assessment: RiskAssessme
   const [scenario, setScenario] = useState<RiskAssessment | null>(null);
   const [simulating, setSimulating] = useState(false);
   const [showEvidence, setShowEvidence] = useState(false);
+  const [sensitivity, setSensitivity] = useState<SlopeSensitivityResponse | null>(null);
+  const [sensitivityLoading, setSensitivityLoading] = useState(false);
+  const currentSlope = assessment.terrain.find(f => f.feature === 'Slope_Angle')?.value ?? 30;
+  const [slopeAngle, setSlopeAngle] = useState(currentSlope);
+  const [slopeScenario, setSlopeScenario] = useState<RiskAssessment | null>(null);
+  const [slopeSimulating, setSlopeSimulating] = useState(false);
+
+  useEffect(() => {
+    setSlopeAngle(currentSlope);
+    setSlopeScenario(null);
+  }, [assessment.location.latitude, assessment.location.longitude, currentSlope]);
+
+  useEffect(() => {
+    const loadSensitivity = async () => {
+      try {
+        setSensitivityLoading(true);
+        setSensitivity(await getSlopeSensitivity(assessment.location.latitude, assessment.location.longitude));
+      } catch {
+        setSensitivity(null);
+      } finally {
+        setSensitivityLoading(false);
+      }
+    };
+    loadSensitivity();
+  }, [assessment.location.latitude, assessment.location.longitude]);
 
   const runScenario = async () => {
     setSimulating(true);
@@ -59,6 +84,17 @@ export function RiskIntelligencePanel({ assessment }: { assessment: RiskAssessme
       setScenario(null);
     } finally {
       setSimulating(false);
+    }
+  };
+
+  const runSlopeScenario = async () => {
+    setSlopeSimulating(true);
+    try {
+      setSlopeScenario(await simulateSlopeRisk(assessment.location.latitude, assessment.location.longitude, slopeAngle));
+    } catch {
+      setSlopeScenario(null);
+    } finally {
+      setSlopeSimulating(false);
     }
   };
 
@@ -123,6 +159,7 @@ export function RiskIntelligencePanel({ assessment }: { assessment: RiskAssessme
           <div className="mt-3 space-y-2">
             <EvidenceRow label={model1?.label || 'Susceptibility probability'} value={model1?.value ?? null} status={model1?.status || 'unknown'} />
             <EvidenceRow label={model3?.label || 'Environmental anomaly evidence'} value={model3?.value ?? null} status={model3?.status || 'unknown'} />
+            <EvidenceRow label="Slope_Angle coefficient (model 1, logistic)" value={assessment.model_outputs?.model1_feature_importance?.[0]?.coefficient as number ?? null} status={assessment.model_outputs?.model1_feature_importance?.[0]?.direction || 'unknown'} />
             <FusionRow assessment={assessment} />
             <div className="grid grid-cols-4 gap-1.5 pt-1">
               {Object.entries(assessment.model_status || {}).map(([k, v]) => (
@@ -148,6 +185,96 @@ export function RiskIntelligencePanel({ assessment }: { assessment: RiskAssessme
         <div className="space-y-2">
           {(assessment.terrain || []).map(f => <FactorRow key={f.feature} factor={f} />)}
         </div>
+      </div>
+
+      <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-semibold text-cyan-300">
+            <Radar className="w-3.5 h-3.5" /> Slope model evidence
+          </div>
+          <span className="text-[9px] font-mono text-slate-500">MODEL 1 · LOGISTIC</span>
+        </div>
+        <div className="mt-2 text-[10px] text-slate-300">
+          <span className="font-bold text-cyan-200">Why this matters:</span> Slope angle is used as a terrain feature by the susceptibility model.
+        </div>
+        <div className="mt-2 text-[10px] text-slate-300">
+          <span className="font-bold text-cyan-200">Model-derived influence:</span>{' '}
+          {assessment.model_outputs?.model1_feature_importance?.[0]?.coefficient != null
+            ? `coefficient ${Number(assessment.model_outputs.model1_feature_importance[0].coefficient).toFixed(4)} (${assessment.model_outputs.model1_feature_importance[0].direction || 'learned direction'})`
+            : 'coefficient unavailable'}
+        </div>
+        <div className="mt-2 text-[9px] text-slate-500">
+          The trained susceptibility model learns the slope effect together with elevation, aspect, weather, and soil features; no separate slope rule or manual risk adjustment is applied.
+        </div>
+      </div>
+
+      {sensitivity && (
+        <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-semibold text-violet-300">
+              <BrainCircuit className="w-3.5 h-3.5" /> Slope sensitivity
+            </div>
+            <span className="text-[9px] font-mono text-slate-500">{sensitivityLoading ? 'loading' : 'what-if'}</span>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {sensitivity.slope_sensitivity.map(row => (
+              <div key={row.slope_angle} className="rounded bg-slate-900/40 border border-slate-800 p-2 text-center">
+                <p className="text-[8px] text-slate-500">{row.slope_angle}°</p>
+                <p className="font-mono text-[10px] text-violet-300">p={row.model_output_probability.toFixed(4)}</p>
+                <p className="text-[8px] text-slate-500">{row.risk_level}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-[9px] text-slate-500 mt-2">{sensitivity.note}</p>
+        </div>
+      )}
+
+      <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <h4 className="text-[10px] uppercase tracking-widest font-semibold text-cyan-300">What-if slope angle simulator</h4>
+          <span className="text-[9px] font-mono text-slate-500">scenario only</span>
+        </div>
+        <p className="text-[10px] text-slate-400 mt-2">Current DEM slope: <span className="font-mono text-cyan-200">{currentSlope.toFixed(2)}°</span></p>
+        <label className="block text-[10px] text-slate-400 mt-3" htmlFor="slope-angle-simulator">Slope angle: <span className="font-mono text-slate-200">{slopeAngle.toFixed(2)}°</span></label>
+        <input
+          id="slope-angle-simulator"
+          className="w-full mt-2 accent-cyan-400"
+          type="range"
+          min="0"
+          max="90"
+          step="0.1"
+          value={slopeAngle}
+          onChange={e => setSlopeAngle(Number(e.target.value))}
+        />
+        <button onClick={runSlopeScenario} disabled={slopeSimulating} className="mt-2 w-full py-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-200 text-xs font-semibold disabled:opacity-50">
+          {slopeSimulating ? <span className="inline-flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" />Running model…</span> : 'Run slope simulation'}
+        </button>
+        {slopeScenario && (() => {
+          const change = slopeScenario.risk_score - assessment.risk_score;
+          const interpretation = Math.abs(change) < 0.05
+            ? 'Risk remained approximately unchanged'
+            : change > 0 ? 'Risk increased' : 'Risk decreased';
+          return (
+            <div className="mt-3 space-y-2">
+              <div className="grid grid-cols-3 gap-1.5">
+                <div className="rounded bg-slate-900/40 border border-slate-800 p-2 text-center">
+                  <p className="text-[8px] text-slate-500">CURRENT</p>
+                  <p className="font-mono text-[10px] text-slate-200">{assessment.risk_score.toFixed(2)}%</p>
+                </div>
+                <div className="rounded bg-slate-900/40 border border-slate-800 p-2 text-center">
+                  <p className="text-[8px] text-slate-500">WHAT-IF</p>
+                  <p className="font-mono text-[10px] text-cyan-200">{slopeScenario.risk_score.toFixed(2)}%</p>
+                </div>
+                <div className="rounded bg-slate-900/40 border border-slate-800 p-2 text-center">
+                  <p className="text-[8px] text-slate-500">CHANGE</p>
+                  <p className="font-mono text-[10px] text-cyan-200">{change >= 0 ? '+' : ''}{change.toFixed(2)}%</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-cyan-100/80">{interpretation}</p>
+              <p className="text-[9px] text-slate-500">Simulated scenario — actual terrain remains unchanged.</p>
+            </div>
+          );
+        })()}
       </div>
 
       <div>

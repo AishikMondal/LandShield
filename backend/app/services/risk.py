@@ -41,12 +41,84 @@ def risk_level(score: float) -> str:
     return "LOW"
 
 
+async def _fetch_inputs(lat: float, lon: float) -> tuple:
+    warnings: list[str] = []
+
+    async def safe(coro, label, default, exc_ok: tuple = (Exception,)):
+        try:
+            return await coro
+        except exc_ok as e:
+            warnings.append(f"{label} unavailable: {type(e).__name__}")
+            return default
+
+    weather, terrain, location, surroundings, earthquakes, soil = await asyncio.gather(
+        safe(fetch_weather(lat, lon), "Weather", None),
+        safe(fetch_elevation_and_terrain(lat, lon), "Terrain", None),
+        safe(reverse_geocode(lat, lon), "Reverse geocoding",
+             {"display_name": "Selected location", "district": None, "state": None, "country": "India",
+              "source_type": "UNAVAILABLE", "source": "UNAVAILABLE"}),
+        safe(fetch_surroundings(lat, lon, ASSET_QUERY_RADIUS_M), "OSM surroundings",
+             {"assets": [], "water_distance_m": None, "landuse": None, "error": True}),
+        safe(fetch_earthquakes(lat, lon), "USGS earthquakes", []),
+        safe(fetch_soil_gird(lat, lon), "SoilGrids", None),
+    )
+    return weather, terrain, location, surroundings, earthquakes, soil, warnings
+
+
 def _spatial_proxy(assets: list[dict]) -> float:
     return spatial_exposure_proxy(assets)
 
 
 def _classify_exposure(dist_m: float, radius_m: float) -> str:
     return classify_exposure(dist_m, radius_m)
+
+
+async def slope_sensitivity(lat: float, lon: float) -> dict:
+    weather, terrain, location, surroundings, earthquakes, soil, _warnings = await _fetch_inputs(lat, lon)
+    values, meta, feature_warnings = builder.build(weather, terrain, surroundings, earthquakes, None, soil=soil)
+
+    # Keep all fields constant except the DEM-derived slope feature passed through the existing model.
+    base_slope = float(values.get("Slope_Angle", 30.0))
+    slopes = [15.0, 30.0, 45.0]
+    sensitivity = []
+    for slope in slopes:
+        values_for_run = values.copy()
+        meta_for_run = meta.copy()
+        values_for_run["Slope_Angle"] = float(slope)
+        meta_for_run["Slope_Angle"] = {**meta_for_run.get("Slope_Angle", {}), "value": float(slope)}
+
+        # Build the model input exactly as the retrained artifact expects.
+        proxy = _spatial_proxy(surroundings.get("assets", []))
+        outputs = registry.predict(values_for_run, proxy)
+        if "susceptibility_prob" in outputs:
+            score = max(0.0, min(100.0, outputs["susceptibility_prob"] * 100))
+            level = risk_level(score)
+        else:
+            score = 0.0
+            level = "LOW"
+
+        sensitivity.append({
+            "slope_angle": round(float(slope), 2),
+            "model_output_probability": round(float(outputs.get("susceptibility_prob", 0.0)), 6),
+            "risk_score": round(float(score), 2),
+            "risk_level": level,
+        })
+
+    # restore the current slope baseline from the live DEM branch
+    values["Slope_Angle"] = base_slope
+    return {
+        "slope_sensitivity": sensitivity,
+        "model_input_received": {
+            "feature": "Slope_Angle",
+            "units": "degrees",
+            "base_features_constant": True,
+            "static_terrain_inputs": ["Elevation_m", "Slope_Angle", "Aspect"],
+            "dynamic_inputs": ["Rainfall_mm", "Rainfall_3Day", "Rainfall_7Day", "Soil_Moisture_Content", "Soil_Saturation"],
+        },
+        "note": "What-if slope sensitivity check. The model output is shown without forcing the score to rise with slope.",
+        "terrain_source": terrain.get("source") if terrain else None,
+        "terrain_source_type": terrain.get("source_type") if terrain else None,
+    }
 
 
 def _explain(meta: dict, values: dict, anomaly: Optional[float], earthquakes: list[dict], water_dist: Optional[float]) -> list[str]:

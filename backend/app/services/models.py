@@ -161,6 +161,46 @@ class ModelRegistry:
                                      "enabled": False, "status": "ERROR", "error": str(e),
                                      "reason": "Fusion artifact failed to load."}
 
+    def _model1_feature_importance(self) -> list[dict]:
+        try:
+            if self.m1 is None or self.m1_features == []:
+                return []
+            clf = self.m1.calibrated_classifiers_[0].estimator.named_steps["classifier"]
+            if not hasattr(clf, "coef_"):
+                return []
+            coef = np.asarray(clf.coef_[0], dtype=float)
+            ranked = []
+            for idx, feat in enumerate(self.m1_features):
+                if feat == "Slope_Angle":
+                    continue
+                ranked.append({
+                    "feature": feat,
+                    "coefficient": float(coef[idx]),
+                    "absolute_weight": float(abs(coef[idx])),
+                })
+            ranked.sort(key=lambda x: abs(x["coefficient"]), reverse=True)
+            slope_idx = self.m1_features.index("Slope_Angle")
+            slope_coef = float(coef[slope_idx]) if slope_idx < len(coef) else 0.0
+            return [
+                {
+                    "feature": "Slope_Angle",
+                    "coefficient": slope_coef,
+                    "absolute_weight": float(abs(slope_coef)),
+                    "direction": "positive" if slope_coef >= 0 else "negative",
+                    "rank": 1,
+                },
+                *[
+                    {
+                        **item,
+                        "rank": idx + 2,
+                    }
+                    for idx, item in enumerate(ranked[:9])
+                ],
+            ]
+        except Exception as e:  # noqa: BLE001
+            self.status["model1"]["feature_importance_error"] = str(e)
+            return []
+
     # ------------------------------------------------------------------
     def predict(self, features: dict, spatial_proxy: Optional[float] = None) -> dict:
         out: dict = {}
@@ -169,6 +209,14 @@ class ModelRegistry:
                 df = pd.DataFrame([[features.get(k) for k in self.m1_features]], columns=self.m1_features)
                 p = float(self.m1.predict_proba(df)[0, 1])
                 out["susceptibility_prob"] = max(0.0, min(1.0, p))
+                out["model1_feature_importance"] = self._model1_feature_importance()
+                try:
+                    slope_idx = self.m1_features.index("Slope_Angle")
+                    out["slope_feature_input_received"] = features.get("Slope_Angle")
+                    out["slope_feature_model_index"] = slope_idx
+                except Exception:
+                    out["slope_feature_input_received"] = features.get("Slope_Angle")
+                    out["slope_feature_model_index"] = None
             except Exception as e:  # noqa: BLE001
                 self.status["model1"]["inference_error"] = str(e)
 

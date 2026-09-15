@@ -190,6 +190,16 @@ class FeatureBuilder:
         else:
             warnings.append("Terrain source unavailable; training-set medians were used for terrain features.")
 
+        if "slope_angle" in scenario:
+            values["Slope_Angle"] = float(scenario["slope_angle"])
+            meta["Slope_Angle"].update({
+                "value": values["Slope_Angle"],
+                "source": "What-if scenario override",
+                "source_type": "MODEL_DERIVED",
+                "fallback_used": False,
+            })
+            warnings.append("Slope angle is temporarily overridden for model sensitivity analysis; DEM terrain remains unchanged.")
+
         # -------------------------------------------------------------------
         # GIS surroundings (land use, road distance, water proximity)
         # -------------------------------------------------------------------
