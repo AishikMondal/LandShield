@@ -80,6 +80,37 @@ npm run dev
 
 Frontend: `http://localhost:5173`
 
+## Deploy frontend and API together on Vercel
+
+This repository includes a Vercel configuration for the Vite frontend and a
+FastAPI Python Function. The frontend uses same-origin `/api` requests in
+production; keep `VITE_API_BASE_URL` unset on Vercel.
+
+1. Push the `LandShield` project directory to a Git provider and import that
+   repository into Vercel.
+2. Set **Root Directory** to `LandShield` if Vercel is importing its parent
+   repository. If `LandShield` is itself the connected repository, use `.`.
+3. Keep the configured build command (`npm run build`) and output directory
+   (`dist`). Vercel builds the Python function from `api/index.py` and installs
+   its dependencies from the root `requirements.txt`.
+4. Deploy. Check `<your-deployment-url>/api/health`; the frontend should be
+   available at the deployment root.
+
+No secrets or API keys are required for the default demo. Optional provider
+credentials can be added under **Project Settings → Environment Variables**;
+redeploy after changing them. Do not set `ENABLE_RECONSTRUCTED_MODEL2` or
+`ENABLE_EXPERIMENTAL_FUSION` on this Vercel configuration because PyTorch is
+intentionally omitted from its function dependencies.
+
+**Vercel demo limitations:** function instances are temporary and may run
+separately. SQLite data and uploaded report images are written to `/tmp` and
+can disappear or differ between instances. In-memory SSE alerts only reach
+clients connected to the same warm instance; they are not a reliable
+cross-instance broadcast. Background hotspot refresh and caches are also
+instance-local. Use a managed database/object store and a shared realtime
+service, or a persistent backend host, before relying on reports, uploads,
+alerts, or hotspot refresh as durable multi-user features.
+
 ## Live-alert demo over the LAN
 
 1. Start the backend, then open the dashboard in **two browser tabs** (same or different machines).

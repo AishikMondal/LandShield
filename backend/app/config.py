@@ -7,8 +7,15 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(BASE_DIR / ".env")
 MODEL_DIR = BASE_DIR / "model_artifacts"
 DATA_DIR = BASE_DIR / "data"
-UPLOAD_DIR = DATA_DIR / "uploads"
-DB_PATH = Path(os.getenv("LANDSHIELD_DB_PATH", str(DATA_DIR / "landshield.db")))
+VERCEL_RUNTIME = os.getenv("VERCEL") == "1"
+UPLOAD_DIR = Path(os.getenv(
+    "LANDSHIELD_UPLOAD_DIR",
+    str(Path("/tmp/landshield-uploads") if VERCEL_RUNTIME else DATA_DIR / "uploads"),
+))
+DB_PATH = Path(os.getenv(
+    "LANDSHIELD_DB_PATH",
+    str(Path("/tmp/landshield.db") if VERCEL_RUNTIME else DATA_DIR / "landshield.db"),
+))
 
 # ---------------------------------------------------------------------------
 # Global switches
@@ -103,5 +110,6 @@ EMAIL_FROM = os.getenv("EMAIL_FROM", "").strip()
 
 CORS_ORIGINS = [v.strip() for v in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if v.strip()]
 
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+if not VERCEL_RUNTIME:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

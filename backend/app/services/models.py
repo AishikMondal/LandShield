@@ -112,7 +112,8 @@ class ModelRegistry:
         except Exception as e:  # noqa: BLE001
             self.status["model2"] = {"name": "Dynamic Risk Neural Network", "loaded": False,
                                      "enabled": False, "status": "DISABLED",
-                                     "reason": f"Cannot load state dict: {e}"}
+                                     "reason": (f"Cannot load state dict: {e}" if ENABLE_RECONSTRUCTED_MODEL2
+                                                else "Disabled by default; optional PyTorch runtime is unavailable.")}
 
         # Model 4
         self.status["model4"] = {
@@ -157,9 +158,15 @@ class ModelRegistry:
                 "note": "Enable only with ENABLE_EXPERIMENTAL_FUSION=true.",
             }
         except Exception as e:  # noqa: BLE001
-            self.status["fusion"] = {"name": "Fusion Decision Engine", "loaded": False,
-                                     "enabled": False, "status": "ERROR", "error": str(e),
-                                     "reason": "Fusion artifact failed to load."}
+            self.status["fusion"] = {
+                "name": "Fusion Decision Engine",
+                "loaded": False,
+                "enabled": False,
+                "status": "ERROR" if ENABLE_EXPERIMENTAL_FUSION else "DISABLED",
+                **({"error": str(e)} if ENABLE_EXPERIMENTAL_FUSION else {}),
+                "reason": ("Fusion artifact failed to load." if ENABLE_EXPERIMENTAL_FUSION
+                           else "Disabled by default; optional PyTorch runtime is unavailable."),
+            }
 
     def _model1_feature_importance(self) -> list[dict]:
         try:
